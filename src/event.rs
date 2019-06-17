@@ -167,6 +167,9 @@ pub enum WindowEvent {
     /// Touch event has been received
     Touch(Touch),
 
+    /// Pen event has been received
+    Pen(Pen),
+
     /// The DPI factor of the window has changed.
     ///
     /// The following user actions can cause DPI changes:
@@ -295,6 +298,26 @@ pub struct Touch {
     /// unique identifier of a finger.
     pub id: u64
 }
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum PenPhase {
+    Start,
+    Continue,
+    End,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Pen {
+    pub id: u32,
+    pub device_id: DeviceId,
+    pub phase: PenPhase,
+    pub pressure: f32,
+    pub rotation: f32,
+    pub tilt_x: i32,
+    pub tilt_y: i32,
+    pub location: LogicalPosition,
+}
+
 
 /// Hardware-dependent keyboard scan code.
 pub type ScanCode = u32;

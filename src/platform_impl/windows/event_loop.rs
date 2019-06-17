@@ -46,7 +46,7 @@ use winapi::um::winnt::{LONG, LPCSTR, SHORT};
 use window::WindowId as RootWindowId;
 use event_loop::{ControlFlow, EventLoopWindowTarget as RootELW, EventLoopClosed};
 use dpi::{LogicalPosition, LogicalSize, PhysicalSize};
-use event::{DeviceEvent, Touch, TouchPhase, StartCause, KeyboardInput, Event, WindowEvent};
+use event::{DeviceEvent, Touch, TouchPhase, StartCause, KeyboardInput, Event, WindowEvent, PenPhase, Pen};
 use platform_impl::platform::{event, WindowId, DEVICE_ID, wrap_device_id, util};
 use platform_impl::platform::dpi::{
     become_dpi_aware,
@@ -1348,7 +1348,79 @@ unsafe extern "system" fn public_window_callback<T>(
             }
             winuser::CloseTouchInputHandle( htouch );
             0
-        }
+        },
+
+
+
+        // TODO(jon): Pen support
+        winuser::WM_POINTERUPDATE => {
+            let pid = LOWORD( wparam as DWORD ) as usize;
+            let mut pointer_type = mem::uninitialized();
+            winuser::GetPointerType(pid as u32, &mut pointer_type);
+            if pointer_type == 3 {
+
+                // TODO(jon): Hovering and cursor type change, i.e. switch to eraser.
+                // Pen buttons?
+
+                // got a pen input
+                let mut pen_info = mem::uninitialized();
+                winuser::GetPointerPenInfo(pid as u32, &mut pen_info);
+                let pointer_info = pen_info.pointerInfo;
+
+                let pointer_is_new = pointer_info.pointerFlags & 0x00000001 != 0;
+                // Pointer continues to exist
+                let pointer_is_in_range = pointer_info.pointerFlags & 0x00000002 != 0;
+                let pointer_is_in_contact = pointer_info.pointerFlags & 0x00000004 != 0;
+
+                // NOTE(jon): For pen input, this seems to be the same as pointer_is_in_contact
+                let pointer_first_button = pointer_info.pointerFlags & 0x00000010 != 0;
+                // Right click equivilient
+                let pointer_second_button = pointer_info.pointerFlags & 0x00000020 != 0;
+                let pen_phase = if pointer_is_new {
+                    PenPhase::Start
+                } else if pointer_is_in_range && pointer_is_in_contact {
+                    PenPhase::Continue
+                } else {
+                    PenPhase::End
+                };
+                /*
+                let barrel_button_is_pressed = pointer_info.penFlags & 0x00000001 != 0;
+                let pen_is_inverted = pointer_info.penFlags & 0x00000002 != 0;
+                let eraser_is_pressed = pointer_info.penFlags & 0x00000004 != 0;
+                println!("Eraser pressed: {}", eraser_is_pressed);
+                println!("Barrel button pressed: {}", barrel_button_is_pressed);
+                let has_pressure = pointer_info.penMask & 0x00000001 != 0;
+                let has_rotation = pointer_info.penMask & 0x00000002 != 0;
+                let has_tilt_x = pointer_info.penMask & 0x00000004 != 0;
+                let has_tilt_y = pointer_info.penMask & 0x00000008 != 0;
+                */
+                /*
+                println!("frame {}", pointer_info.frameId);
+                println!("x {}, y {}", pointer_info.ptPixelLocationRaw.x, pointer_info.ptPixelLocationRaw.y);
+                println!("time {}", pointer_info.dwTime);
+                println!("messages {}", pointer_info.historyCount);
+                println!("pressure {}, rotation {}, tiltX {}, tiltY {}", pen_info.pressure, pen_info.rotation, pen_info.tiltX, pen_info.tiltY);
+                */
+                let x = pointer_info.ptPixelLocationRaw.x as f64;
+                let y = pointer_info.ptPixelLocationRaw.y as f64;
+                let dpi_factor = hwnd_scale_factor(window);
+                let location = LogicalPosition::from_physical((x, y), dpi_factor);
+                subclass_input.send_event(Event::WindowEvent {
+                    window_id: RootWindowId(WindowId(window)),
+                    event: WindowEvent::Pen(Pen {
+                        device_id: DEVICE_ID,
+                        id: pid as u32,
+                        location,
+                        phase: pen_phase,
+                        rotation: pen_info.rotation as f32,
+                        tilt_x: pen_info.tiltX,
+                        tilt_y: pen_info.tiltY,
+                        pressure: pen_info.pressure as f32,
+                    })
+                });
+            }
+            0
+        },
 
         winuser::WM_SETFOCUS => {
             use event::WindowEvent::Focused;
