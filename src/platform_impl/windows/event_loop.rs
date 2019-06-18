@@ -1357,66 +1357,100 @@ unsafe extern "system" fn public_window_callback<T>(
             let pid = LOWORD( wparam as DWORD ) as usize;
             let mut pointer_type = mem::uninitialized();
             winuser::GetPointerType(pid as u32, &mut pointer_type);
-            if pointer_type == 3 {
 
+            if pointer_type == 3 {
                 // TODO(jon): Hovering and cursor type change, i.e. switch to eraser.
                 // Pen buttons?
 
-                // got a pen input
-                let mut pen_info = mem::uninitialized();
-                winuser::GetPointerPenInfo(pid as u32, &mut pen_info);
-                let pointer_info = pen_info.pointerInfo;
+                // NOTE: If this is a device with a much higher reporting rate than the event loop
+                // rate (which is limited by the display refresh rate), there will be multiple
+                // cursor messages available per frame.
+                // Up to 7 pointer events per frame should be plenty.
+                // My graphics tablet supposedly reports 266 events per second,
+                // so ~4.5 events per frame at 60hz.
+                const MAX_EVENTS_PER_FRAME: usize = 7;
+                let mut pen_events = VecDeque::new();
+                let mut pen_infos: [_; MAX_EVENTS_PER_FRAME] = mem::uninitialized();
+                let mut pen_events_count = MAX_EVENTS_PER_FRAME as u32;
 
-                let pointer_is_new = pointer_info.pointerFlags & 0x00000001 != 0;
-                // Pointer continues to exist
-                let pointer_is_in_range = pointer_info.pointerFlags & 0x00000002 != 0;
-                let pointer_is_in_contact = pointer_info.pointerFlags & 0x00000004 != 0;
+                // Get one or more coalesced events:
+                if winuser::GetPointerPenInfoHistory(pid as u32, &mut pen_events_count, pen_infos.as_mut_ptr()) != 0 {
+                    if pen_events_count > MAX_EVENTS_PER_FRAME as u32 {
+                        println!("Pen device is reporting events faster than we're handling them, dropped {} events", pen_events_count - MAX_EVENTS_PER_FRAME as u32);
+                    }
 
-                // NOTE(jon): For pen input, this seems to be the same as pointer_is_in_contact
-                let pointer_first_button = pointer_info.pointerFlags & 0x00000010 != 0;
-                // Right click equivilient
-                let pointer_second_button = pointer_info.pointerFlags & 0x00000020 != 0;
-                let pen_phase = if pointer_is_new {
-                    PenPhase::Start
-                } else if pointer_is_in_range && pointer_is_in_contact {
-                    PenPhase::Continue
-                } else {
-                    PenPhase::End
-                };
-                /*
-                let barrel_button_is_pressed = pointer_info.penFlags & 0x00000001 != 0;
-                let pen_is_inverted = pointer_info.penFlags & 0x00000002 != 0;
-                let eraser_is_pressed = pointer_info.penFlags & 0x00000004 != 0;
-                println!("Eraser pressed: {}", eraser_is_pressed);
-                println!("Barrel button pressed: {}", barrel_button_is_pressed);
-                let has_pressure = pointer_info.penMask & 0x00000001 != 0;
-                let has_rotation = pointer_info.penMask & 0x00000002 != 0;
-                let has_tilt_x = pointer_info.penMask & 0x00000004 != 0;
-                let has_tilt_y = pointer_info.penMask & 0x00000008 != 0;
-                */
-                /*
-                println!("frame {}", pointer_info.frameId);
-                println!("x {}, y {}", pointer_info.ptPixelLocationRaw.x, pointer_info.ptPixelLocationRaw.y);
-                println!("time {}", pointer_info.dwTime);
-                println!("messages {}", pointer_info.historyCount);
-                println!("pressure {}, rotation {}, tiltX {}, tiltY {}", pen_info.pressure, pen_info.rotation, pen_info.tiltX, pen_info.tiltY);
-                */
-                let x = pointer_info.ptPixelLocationRaw.x as f64;
-                let y = pointer_info.ptPixelLocationRaw.y as f64;
-                let dpi_factor = hwnd_scale_factor(window);
-                let location = LogicalPosition::from_physical((x, y), dpi_factor);
+                    for i in 0..usize::min(MAX_EVENTS_PER_FRAME, pen_events_count as usize) {
+                        let pen_info = &pen_infos[i];
+                        let pointer_info = pen_info.pointerInfo;
+                        let pointer_is_new = pointer_info.pointerFlags & 0x00000001 != 0;
+                        // Pointer continues to exist
+                        let pointer_is_in_range = pointer_info.pointerFlags & 0x00000002 != 0;
+                        let pointer_is_in_contact = pointer_info.pointerFlags & 0x00000004 != 0;
+
+                        // NOTE(jon): For pen input, this seems to be the same as pointer_is_in_contact
+                        let pointer_first_button = pointer_info.pointerFlags & 0x00000010 != 0;
+                        // Right click equivalent
+                        let pointer_second_button = pointer_info.pointerFlags & 0x00000020 != 0;
+
+                        // TODO(jon): This needs to be a finite state machine or something.
+                        let pen_phase = if pointer_is_new {
+                            PenPhase::Start
+                        } else if pointer_is_in_range && pointer_is_in_contact {
+                            PenPhase::Continue
+                        } else {
+                            // We only want to send one of these...
+
+                            // We maybe want to send in/out of range events also.
+                            PenPhase::End
+                        };
+                        //println!("Pointer in range {}", pointer_is_in_range);
+                        //println!("Pointer in contact {}", pointer_is_in_contact);
+                        /*
+                        let barrel_button_is_pressed = pointer_info.penFlags & 0x00000001 != 0;
+                        let pen_is_inverted = pointer_info.penFlags & 0x00000002 != 0;
+                        let eraser_is_pressed = pointer_info.penFlags & 0x00000004 != 0;
+                        println!("Eraser pressed: {}", eraser_is_pressed);
+                        println!("Barrel button pressed: {}", barrel_button_is_pressed);
+                        let has_pressure = pointer_info.penMask & 0x00000001 != 0;
+                        let has_rotation = pointer_info.penMask & 0x00000002 != 0;
+                        let has_tilt_x = pointer_info.penMask & 0x00000004 != 0;
+                        let has_tilt_y = pointer_info.penMask & 0x00000008 != 0;
+                        */
+                        /*
+                        println!("frame {}", pointer_info.frameId);
+                        println!("x {}, y {}", pointer_info.ptPixelLocationRaw.x, pointer_info.ptPixelLocationRaw.y);
+                        println!("time {}", pointer_info.dwTime);
+                        println!("messages {}", pointer_info.historyCount);
+                        println!("pressure {}, rotation {}, tiltX {}, tiltY {}", pen_info.pressure, pen_info.rotation, pen_info.tiltX, pen_info.tiltY);
+                        */
+
+                        // NOTE: Even if your graphics tablet says it has a sensitivity of 8096 levels,
+                        // or whatever, windows will normalise that into a range from 0..1024, so we're
+                        // arguably losing resolution here.  Not sure if it matters though.
+//                if pointer_is_in_contact {
+//                    println!("pressure {}, rotation {}, tiltX {}, tiltY {}", pen_info.pressure, pen_info.rotation, pen_info.tiltX, pen_info.tiltY);
+//                }
+                        let x = pointer_info.ptPixelLocationRaw.x as f64;
+                        let y = pointer_info.ptPixelLocationRaw.y as f64;
+                        let dpi_factor = hwnd_scale_factor(window);
+                        let location = LogicalPosition::from_physical((x, y), dpi_factor);
+                        pen_events.push_front(Pen {
+                            device_id: DEVICE_ID,
+                            id: pid as u32,
+                            location,
+                            phase: pen_phase,
+                            rotation: pen_info.rotation as f32,
+                            tilt_x: pen_info.tiltX,
+                            tilt_y: pen_info.tiltY,
+                            pressure: pen_info.pressure as f32 / 1024.0,
+                            timestamp: pointer_info.PerformanceCount,
+                        });
+                    }
+
+                }
                 subclass_input.send_event(Event::WindowEvent {
                     window_id: RootWindowId(WindowId(window)),
-                    event: WindowEvent::Pen(Pen {
-                        device_id: DEVICE_ID,
-                        id: pid as u32,
-                        location,
-                        phase: pen_phase,
-                        rotation: pen_info.rotation as f32,
-                        tilt_x: pen_info.tiltX,
-                        tilt_y: pen_info.tiltY,
-                        pressure: pen_info.pressure as f32,
-                    })
+                    event: WindowEvent::Pen(pen_events)
                 });
             }
             0

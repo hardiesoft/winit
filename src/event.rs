@@ -10,6 +10,7 @@ use std::path::PathBuf;
 use dpi::{LogicalPosition, LogicalSize};
 use window::WindowId;
 use platform_impl;
+use std::collections::VecDeque;
 
 /// Describes a generic event.
 #[derive(Clone, Debug, PartialEq)]
@@ -168,7 +169,7 @@ pub enum WindowEvent {
     Touch(Touch),
 
     /// Pen event has been received
-    Pen(Pen),
+    Pen(VecDeque<Pen>),
 
     /// The DPI factor of the window has changed.
     ///
@@ -316,6 +317,7 @@ pub struct Pen {
     pub tilt_x: i32,
     pub tilt_y: i32,
     pub location: LogicalPosition,
+    pub timestamp: u64,
 }
 
 
