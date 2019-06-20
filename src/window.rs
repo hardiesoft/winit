@@ -1,13 +1,13 @@
 //! The `Window` struct and associated types.
 use std::fmt;
 
-use platform_impl;
-use error::{ExternalError, NotSupportedError, OsError};
-use event_loop::EventLoopWindowTarget;
-use monitor::{AvailableMonitorsIter, MonitorHandle};
-use dpi::{LogicalPosition, LogicalSize};
+use crate::platform_impl;
+use crate::error::{ExternalError, NotSupportedError, OsError};
+use crate::event_loop::EventLoopWindowTarget;
+use crate::monitor::{AvailableMonitorsIter, MonitorHandle};
+use crate::dpi::{LogicalPosition, LogicalSize};
 
-pub use icon::*;
+pub use crate::icon::*;
 
 /// Represents a window.
 ///
@@ -35,7 +35,7 @@ pub struct Window {
 }
 
 impl fmt::Debug for Window {
-    fn fmt(&self, fmtr: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, fmtr: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmtr.pad("Window { .. }")
     }
 }
@@ -71,7 +71,7 @@ pub struct WindowBuilder {
 }
 
 impl fmt::Debug for WindowBuilder {
-    fn fmt(&self, fmtr: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, fmtr: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmtr.debug_struct("WindowBuilder")
             .field("window", &self.window)
             .finish()
@@ -347,7 +347,7 @@ impl Window {
     /// Emits a `WindowEvent::RedrawRequested` event in the associated event loop after all OS
     /// events have been processed by the event loop.
     ///
-    /// This is the **strongly encouraged** method of redrawing windows, as it can integrates with
+    /// This is the **strongly encouraged** method of redrawing windows, as it can integrate with
     /// OS-requested redraws (e.g. when a window gets resized).
     ///
     /// This function can cause `RedrawRequested` events to be emitted after `Event::EventsCleared`

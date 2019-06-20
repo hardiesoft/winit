@@ -7,9 +7,9 @@
 use std::time::Instant;
 use std::path::PathBuf;
 
-use dpi::{LogicalPosition, LogicalSize};
-use window::WindowId;
-use platform_impl;
+use crate::dpi::{LogicalPosition, LogicalSize};
+use crate::window::WindowId;
+use crate::platform_impl;
 use std::collections::VecDeque;
 
 /// Describes a generic event.
