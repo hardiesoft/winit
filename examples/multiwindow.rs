@@ -8,8 +8,16 @@ use winit::{
 fn main() {
     let event_loop = EventLoop::new();
 
+    // TODO(jon):
+    // An application should be able to control the z-stacking order of its windows.
+    // They should be able to be restored after minimize/restore actions.
+    // We should have a set_active(window) method, which does not necessarily imply set_active_and_move_to_front.
+    // A window should automatically gain focus on creation, in the order of window creation
+    // and dispatch WindowEvent::Focused(true)
+    // Some tool panel style windows should always defer their focus to their 'parent' window.
+
     let mut windows = HashMap::new();
-    for _ in 0..3 {
+    for _ in 0..2 {
         let window = Window::new(&event_loop).unwrap();
         println!("New window {:?}", window.id());
         windows.insert(window.id(), window);
