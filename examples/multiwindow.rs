@@ -11,6 +11,7 @@ fn main() {
     let mut windows = HashMap::new();
     for _ in 0..3 {
         let window = Window::new(&event_loop).unwrap();
+        println!("New window {:?}", window.id());
         windows.insert(window.id(), window);
     }
 
@@ -38,7 +39,15 @@ fn main() {
                         ..
                     } => {
                         let window = Window::new(&event_loop).unwrap();
+                        println!("New window {:?}", window.id());
                         windows.insert(window.id(), window);
+                    }
+                    WindowEvent::Focused(got_focus) => {
+                        if got_focus {
+                            println!("Got focus: {:?}", window_id);
+                        } else {
+                            println!("Lost focus: {:?}", window_id);
+                        }
                     }
                     _ => (),
                 }
